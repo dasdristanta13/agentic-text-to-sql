@@ -8,6 +8,9 @@ from utils.config import AppConfig
 from utils.logging import configure_logging
 from database import SQLiteConnector, PostgresConnector, CSVConnector
 from system import TextToSQLSystem
+from typing import List
+
+logger = logging.getLogger(__name__)
 
 # Default configuration
 DEFAULT_CONFIG_DIR = "./config"
@@ -98,7 +101,7 @@ class NotebookSystem:
         provider = self.config.system.default_llm_provider
         models = {
             # "groq": ["qwen/qwen3-32b","llama-3.1-8b-instant","deepseek-r1-distill-llama-70b"],
-            "groq": ["qwen/qwen3-32b"],
+            "groq": ["llama-3.1-8b-instant"],
             # "openai": ["gpt-3.5-turbo-instruct", "gpt-4", "gpt-4-turbo"],
             # "azure": ["gpt-35-turbo", "gpt-4"],
             # "gemini": ["gemini-pro", "gemini-1.5-pro"],
@@ -113,6 +116,44 @@ class NotebookSystem:
             print("Created sample SQLite database")
         else:
             print("Sample data creation only supported for SQLite")
+# Add this method to NotebookSystem class
+    def run_query_with_history(self, question: str) -> List[dict]:
+        """Run query and return all intermediate states for analysis"""
+        from text_to_sql.state import AgentState
+        
+        # Reset feedback for new query
+        # self.system.generator.feedback = ""  # Removed: 'feedback' attribute does not exist
+        
+        states = []
+        current_state = AgentState(
+            question=question,
+            think="",
+            sql_query="",
+            explanation="",
+            query_result=None,
+            error="",
+            feedback="",
+            retry_count=0,
+            valid_sql=False
+        )
+        
+        # Manually step through workflow
+        try:
+            for node in ["generate", "validate", "execute", "handle_error"]:
+                new_state = self.system.workflow.nodes[node].invoke(current_state)
+                states.append(new_state)
+                
+                # Break if we've reached end or max retries
+                if node == "execute" and not new_state.error:
+                    break
+                if node == "handle_error" and "Max retries" in new_state.error:
+                    break
+                    
+                current_state = new_state
+        except Exception as e:
+            logger.error(f"Step-through failed: {str(e)}")
+        
+        return states
 
 
 if __name__ == "__main__":
@@ -126,18 +167,18 @@ if __name__ == "__main__":
         config_dir="config"  # Path to config folder
     )
 
-    # Test Groq with different models
-    for model in system.available_models():
+    # Run query with history
+    history = system.run_query_with_history(
+        "Show total sales per customer"
+    )
+# Display retry history
+    for i, state in enumerate(history):
         print(f"\n{'='*40}")
-        print(f"Testing model: {model}")
-        system.set_model(model)
-        
-        result = system.run_query("Show total number of orders per customer")
-        print("SQL:", result["sql"])
-        
-        if result["result"] is not None and not result["result"].empty:
-            print("Result:")
-            print(result["result"])
-        
-        if result["error"]:
-            print("Error:", result["error"])
+        print(f"Attempt {i+1} State:")
+        print(f"Think: {state['think'][:200]}...")
+        print(f"SQL: {state['sql_query'][:100]}...")
+        print(f"Explanation: {state['explanation'][:100]}...")
+        if state['error']:
+            print(f"Error: {state['error'][:200]}...")
+        if state:
+            print(f"Results: {len(state)} rows")

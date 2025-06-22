@@ -20,3 +20,7 @@ def configure_logging(config: LoggingConfig):
     # Configure OpenAI logging
     openai_logger = logging.getLogger('openai')
     openai_logger.setLevel(logging.INFO)
+
+    # Configure Groq logging
+    openai_logger = logging.getLogger('groq')
+    openai_logger.setLevel(logging.INFO)

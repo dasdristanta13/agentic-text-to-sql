@@ -17,7 +17,9 @@ class SystemConfig(BaseModel):
 class LoggingConfig(BaseModel):
     """Logging configuration model."""
     level: str = Field("INFO")
-    format: str = Field("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    format: str = Field(
+        "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+    )
 
 class AppConfig:
     """Enhanced application configuration loader."""

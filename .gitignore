@@ -18,3 +18,4 @@ t2sql/
 .coverage
 # MyPy cache
 .mypy_cache/
+text_to_sql.log
